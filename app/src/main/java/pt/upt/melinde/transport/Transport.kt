@@ -1,19 +1,21 @@
 package pt.upt.melinde.transport
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 
 interface Transport {
     val transportId: TransportMode;
-    val melindeUuid: String;
-
-    // States var1
-    var searching: Boolean;
+    val advertising: StateFlow<Boolean>
 
 
-    suspend fun StartDiscovery() : Any;
-    suspend fun StopDiscovery();
+    fun startDiscovery() : Flow<Device>;
 
-    suspend fun Send(device: Device, message: Message)
+    fun startAdvertise();
+    fun stopAdvertise();
+
+
+    suspend fun send(device: Device, message: Message)
 
 }
 

@@ -1,9 +1,12 @@
 package pt.upt.melinde.ui.scan
 
+import android.graphics.Color
+import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -11,13 +14,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import pt.upt.melinde.transport.ble.GattServer
 
 
-
-    @Composable
+@Composable
     fun ScanScreen(
         modifier: Modifier = Modifier,
         viewModel: ScanViewModel = viewModel()
@@ -42,15 +48,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
             error?.let { Text("Erro: $it") }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(100.dp))
 
+            if (devices.size != 0) {
+                Text("Dispositivos encontrados:")
+            }
             LazyColumn {
                 items(devices, key = { it.deviceId }) { d ->
-                    Button(onClick = {
-
-                    }) {
-                        Text("${d.deviceId}")
-                    }
+                   Text("Device ${d.deviceId}", fontSize = 10.sp)
                 }
             }
         }

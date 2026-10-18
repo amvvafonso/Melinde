@@ -37,13 +37,13 @@ import java.util.concurrent.ConcurrentHashMap
  * @param nodeId
  * @author Afonso Viana
  */
-class BleInterface(context: Context, private val nodeId: UUID) : Transport {
+class BleInterface(private val context: Context, private val nodeId: UUID) : Transport {
 
     /**
      * Devices on the proximity that support Melinde
      */
     private val availableDevices: ConcurrentHashMap<UUID, BluetoothDevice> = ConcurrentHashMap<UUID, BluetoothDevice>()
-
+    private val gattClients: ConcurrentHashMap<UUID, GattClient> = ConcurrentHashMap<UUID, GattClient>()
     private val bleAdapter: BluetoothAdapter = context.getSystemService(BluetoothManager::class.java).adapter
 
 
@@ -56,6 +56,10 @@ class BleInterface(context: Context, private val nodeId: UUID) : Transport {
     private val _advertising = MutableStateFlow(false)
     override val advertising: StateFlow<Boolean> = _advertising.asStateFlow()
 
+
+    init {
+        Log.d(BleShared.BLE_TAG, "CODED ${bleAdapter.isLeCodedPhySupported()} | ${bleAdapter.isLeExtendedAdvertisingSupported()} | dataLength ${bleAdapter.leMaximumAdvertisingDataLength} ||| FASTER ${bleAdapter.isLe2MPhySupported()}")
+    }
 
     /**
      * Starts scanning the proximity for Devices that support Melinde
@@ -225,23 +229,34 @@ class BleInterface(context: Context, private val nodeId: UUID) : Transport {
         //TODO: Not implemented yet
     }
 
+
+
     /**
      * Verifies ScanResult from Bluetooth LE Scans. Adds device to availableDevices
      *
      * @param result
-     * @see startDiscovery
+     * @see BleInterface
      * @return Device?
      */
-    private fun verifyScanResult(result : ScanResult?) : Device? {
+    private fun verifyScanResult(result: ScanResult?): Device? {
         if (result == null) return null
 
         val device = result.toDevice() ?: return null
 
         availableDevices[device.deviceId] = result.device
 
-        Log.d(BleShared.BLE_TAG, "Address stored on HashMap: ${device.deviceId}")
+        gattClients.computeIfAbsent(device.deviceId) {
+            Log.d(
+                BleShared.BLE_TAG,
+                "Creating GattClient for ${result.device.address}, " +
+                        "deviceId=${device.deviceId}"
+            )
+            GattClient(context, result.device)
+        }
 
         return device
     }
+
+
 
 }

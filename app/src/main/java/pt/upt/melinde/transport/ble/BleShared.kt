@@ -9,7 +9,8 @@ object BleShared {
     // Bluetooth LE properties
     // ----------------------------------------------------
     const val BLE_TAG = "BleInterface"
-    const val GATT_TAG = "GattServer"
+    const val GATT_SERVER_TAG = "GattServer"
+    const val GATT_CLIENT_TAG = "GattClient"
     const val MANUFACTURER_ID = 0xFFFF
     const val SERVICE_UUID = "f69be1c6-7319-f3a0-cfbf-8a3868346ce3"
     const val NODE_ID_BYTES = 16

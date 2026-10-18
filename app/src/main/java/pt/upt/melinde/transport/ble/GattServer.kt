@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 sealed interface GattServerEvent {
@@ -29,8 +28,10 @@ sealed interface GattServerEvent {
 }
 
 /**
- * Class that allows the user to interact with GATT server
+ * Class that allows the user to interact with GATT server, provides services and characteristics from other devices
  * @param context
+ *
+ * @see GattClient
  */
 @SuppressLint("MissingPermission")
 class GattServer(private val context: Context)  {
@@ -59,7 +60,7 @@ class GattServer(private val context: Context)  {
 
         val gattServer = manager.openGattServer(context, callback)
         if (gattServer == null) {
-            Log.e(BleShared.GATT_TAG, "An error occurred when trying to start GATT server")
+            Log.e(BleShared.GATT_SERVER_TAG, "An error occurred when trying to start GATT server")
             return
         }
         server = gattServer
@@ -121,20 +122,31 @@ class GattServer(private val context: Context)  {
         override fun onServiceAdded(status: Int, service: BluetoothGattService) {
             val ok = status == BluetoothGatt.GATT_SUCCESS
             _ready.value = ok
-            if (ok) Log.i(BleShared.GATT_TAG, "GATT was added successfully")
-            else Log.e(BleShared.GATT_TAG, "An error occurred while adding the GATT Service: $status")
+            if (ok) Log.i(BleShared.GATT_SERVER_TAG, "GATT was added successfully")
+            else Log.e(BleShared.GATT_SERVER_TAG, "An error occurred while adding the GATT Service: $status")
         }
 
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
-            Log.i(BleShared.GATT_TAG, "Connected to ${device.address}: status=$status newState=$newState")
+            Log.i(BleShared.GATT_SERVER_TAG, "Connected to ${device.address}: status=$status newState=$newState")
             when (newState) {
-                BluetoothProfile.STATE_CONNECTED ->
+                BluetoothProfile.STATE_CONNECTED -> {
                     _events.tryEmit(GattServerEvent.Connected(device))
+                    server?.setPreferredPhy(
+                        device,
+                        BluetoothDevice.PHY_LE_CODED_MASK,
+                        BluetoothDevice.PHY_LE_CODED_MASK,
+                        BluetoothDevice.PHY_OPTION_S8
+                    )
+                }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     subscribers.remove(device)
                     _events.tryEmit(GattServerEvent.Disconnected(device))
                 }
             }
+        }
+
+        override fun onPhyUpdate(device: BluetoothDevice?, txPhy: Int, rxPhy: Int, status: Int) {
+            Log.d(BleShared.GATT_SERVER_TAG, "THE PHY WAS UPDATED ON DEVICE ${device?.address}: Success ${status == BluetoothGatt.GATT_SUCCESS}")
         }
 
         override fun onCharacteristicWriteRequest(
@@ -148,7 +160,8 @@ class GattServer(private val context: Context)  {
         ) {
             val valid = characteristic.uuid == BleShared.MESSAGE_CHAR && !preparedWrite
             if (valid) {
-                Log.i(BleShared.GATT_TAG, "Received ${value.size} bytes from Device:${device.address}")
+                Log.i(BleShared.GATT_SERVER_TAG, "Received ${value.size} bytes from Device:${device.address}")
+                Log.d(BleShared.GATT_SERVER_TAG, value.contentToString())
                 _events.tryEmit(GattServerEvent.MessageReceived(device, value))
             }
             if (responseNeeded) {
@@ -159,6 +172,7 @@ class GattServer(private val context: Context)  {
                 )
             }
         }
+
 
         override fun onDescriptorWriteRequest(
             device: BluetoothDevice,
@@ -175,7 +189,7 @@ class GattServer(private val context: Context)  {
                     value.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) -> {
                         subscribers.add(device)
                         status = BluetoothGatt.GATT_SUCCESS
-                        Log.i(BleShared.GATT_TAG, "${device.address} has subscribed")
+                        Log.i(BleShared.GATT_SERVER_TAG, "${device.address} has subscribed")
                     }
                     value.contentEquals(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE) -> {
                         subscribers.remove(device)
@@ -202,11 +216,11 @@ class GattServer(private val context: Context)  {
         }
 
         override fun onNotificationSent(device: BluetoothDevice, status: Int) {
-            Log.d(BleShared.GATT_TAG, "Notification was sent to ${device.address}: status=$status")
+            Log.d(BleShared.GATT_SERVER_TAG, "Notification was sent to ${device.address}: status=$status")
         }
 
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
-            Log.i(BleShared.GATT_TAG, "MTU with ${device.address}: $mtu")
+            Log.i(BleShared.GATT_SERVER_TAG, "MTU with ${device.address}: $mtu")
         }
     }
 }

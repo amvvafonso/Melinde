@@ -68,4 +68,6 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     }
 
+
+
 }

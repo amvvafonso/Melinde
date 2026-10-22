@@ -1,6 +1,7 @@
 package pt.upt.melinde.transport.ble
 
 
+import android.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -25,6 +26,7 @@ import pt.upt.melinde.transport.Device
 import pt.upt.melinde.transport.Message
 import pt.upt.melinde.transport.Transport
 import pt.upt.melinde.transport.TransportMode
+import pt.upt.melinde.transport.TransportState
 import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -47,14 +49,18 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
     private val bleAdapter: BluetoothAdapter = context.getSystemService(BluetoothManager::class.java).adapter
 
 
+    override val messages: Flow<ByteArray>
+        get() = TODO("Not yet implemented")
     override val transportId = TransportMode.BluetoothLE
+    override var transportState: TransportState = TransportState.Disconnected
+
     private val serviceUuid = ParcelUuid.fromString(BleShared.SERVICE_UUID)
 
     private val gattServer = GattServer(context)
 
 
     private val _advertising = MutableStateFlow(false)
-    override val advertising: StateFlow<Boolean> = _advertising.asStateFlow()
+    val advertising: StateFlow<Boolean> = _advertising.asStateFlow()
 
 
     init {
@@ -67,7 +73,7 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
      * @return Flow with devices found
      */
     @SuppressLint("MissingPermission")
-    override fun startDiscovery() : Flow<Device> = callbackFlow {
+    fun startDiscovery() : Flow<Device> = callbackFlow {
         val scanner = bleAdapter.bluetoothLeScanner
 
         if (scanner == null) {
@@ -170,7 +176,7 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
      * and starts GATT server
      */
     @SuppressLint("MissingPermission")
-    override fun startAdvertise() {
+    fun startAdvertise() {
         if (_advertising.value) return
 
         val bleAdvertiser = bleAdapter.bluetoothLeAdvertiser
@@ -208,7 +214,7 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
      * @see startAdvertise
      */
     @SuppressLint("MissingPermission")
-    override fun stopAdvertise() {
+    fun stopAdvertise() {
         bleAdapter.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
         _advertising.value = false
         gattServer.stop()
@@ -225,9 +231,17 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
             .putLong(nodeId.leastSignificantBits)
             .array()
 
-    override suspend fun send(device: Device, message: Message) {
-        //TODO: Not implemented yet
+    override fun send(device : Device, message: Message) {
+
     }
+
+    /**
+     * Processes message received
+     */
+    override suspend fun processMessage(byteArray: ByteArray) {
+
+    }
+
 
 
 
@@ -252,7 +266,9 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
                         "deviceId=${device.deviceId}"
             )
             GattClient(context, result.device)
-        }
+
+
+        }.connect()
 
         return device
     }

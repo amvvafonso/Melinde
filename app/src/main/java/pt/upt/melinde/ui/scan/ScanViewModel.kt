@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pt.upt.melinde.transport.Device
+import pt.upt.melinde.transport.Message
 import pt.upt.melinde.transport.ble.BleInterface
 import pt.upt.melinde.transport.ble.NodeIdStore
 import java.util.UUID
@@ -68,6 +69,9 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     }
 
+    fun send(device: Device, message: Message) {
+        bleInterface.send(device, message)
+    }
 
 
 }

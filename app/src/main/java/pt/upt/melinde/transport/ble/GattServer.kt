@@ -137,6 +137,9 @@ class GattServer(private val context: Context)  {
                         BluetoothDevice.PHY_LE_CODED_MASK,
                         BluetoothDevice.PHY_OPTION_S8
                     )
+
+
+
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     subscribers.remove(device)
@@ -161,7 +164,6 @@ class GattServer(private val context: Context)  {
             val valid = characteristic.uuid == BleShared.MESSAGE_CHAR && !preparedWrite
             if (valid) {
                 Log.i(BleShared.GATT_SERVER_TAG, "Received ${value.size} bytes from Device:${device.address}")
-                Log.d(BleShared.GATT_SERVER_TAG, value.contentToString())
                 _events.tryEmit(GattServerEvent.MessageReceived(device, value))
             }
             if (responseNeeded) {

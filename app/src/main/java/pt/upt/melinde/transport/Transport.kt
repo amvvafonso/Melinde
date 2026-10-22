@@ -5,17 +5,36 @@ import kotlinx.coroutines.flow.StateFlow
 
 
 interface Transport {
-    val transportId: TransportMode;
-    val advertising: StateFlow<Boolean>
+    /**
+     * Identifies the transport mode being used
+     *
+     * @see TransportMode
+     */
+    val transportId: TransportMode
+
+    /**
+     * Shows current connection state
+     *
+     * @see TransportMode
+     */
+
+    var transportState: TransportState
 
 
-    fun startDiscovery() : Flow<Device>;
+    /**
+     * The messages received
+     */
+    val messages: Flow<ByteArray>
 
-    fun startAdvertise();
-    fun stopAdvertise();
 
-
-    suspend fun send(device: Device, message: Message)
+    /**
+     * Method to send messages between devices
+     *
+     * @see Device
+     * @see Message
+     */
+    fun send(device: Device, message: Message)
+    suspend fun processMessage(byteArray: ByteArray)
 
 }
 

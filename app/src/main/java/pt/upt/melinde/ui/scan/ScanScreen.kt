@@ -20,7 +20,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import pt.upt.melinde.transport.Message
 import pt.upt.melinde.transport.ble.GattServer
+import java.util.UUID
 
 
 @Composable
@@ -55,7 +57,9 @@ import pt.upt.melinde.transport.ble.GattServer
             }
             LazyColumn {
                 items(devices, key = { it.deviceId }) { d ->
-                   Text("Device ${d.deviceId}", fontSize = 10.sp)
+                   Button(
+                       { viewModel.send(d, Message(UUID.randomUUID().toString(), d.deviceId, d.deviceId, "Ola".toByteArray())) }
+                   ) { Text("${d.deviceId}") }
                 }
             }
         }

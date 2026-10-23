@@ -13,19 +13,6 @@ data class Message(val messageId : String, val senderId: UUID, val destinationId
 
 
 
-    fun toByteArray() : ByteArray{
-        return ByteBuffer.allocate(BleShared.NODE_ID_BYTES)
-            .putLong(destinationId.mostSignificantBits)
-            .putLong(destinationId.leastSignificantBits)
-            .putLong(senderId.mostSignificantBits)
-            .putLong(senderId.leastSignificantBits)
-            .put(payload)
-            .array()
-    }
-
-
-
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false

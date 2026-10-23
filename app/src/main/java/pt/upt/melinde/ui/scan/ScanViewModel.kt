@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,8 @@ import java.util.UUID
 class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private val bleInterface = BleInterface(app, NodeIdStore.get(app))
+    val nodeId = bleInterface.nodeId
+
 
     private val found = MutableStateFlow<Map<UUID, Device>>(emptyMap())
     val devices: StateFlow<List<Device>> =
@@ -30,7 +33,17 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     private val _scanning = MutableStateFlow(false)
     val scanning: StateFlow<Boolean> = _scanning
 
+    private val _messages = MutableStateFlow<List<String>>(emptyList())
+    val messages: StateFlow<List<String>> = _messages
     val advertising: StateFlow<Boolean> = bleInterface.advertising
+
+    init {
+        viewModelScope.launch {
+            bleInterface.messages.collect { bytes ->
+                _messages.update { it + bytes.decodeToString() }
+            }
+        }
+    }
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
@@ -72,6 +85,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     fun send(device: Device, message: Message) {
         bleInterface.send(device, message)
     }
+
 
 
 }

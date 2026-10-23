@@ -16,12 +16,20 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.ParcelUuid
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.launch
 import pt.upt.melinde.transport.Device
 import pt.upt.melinde.transport.Message
 import pt.upt.melinde.transport.Transport
@@ -39,7 +47,7 @@ import java.util.concurrent.ConcurrentHashMap
  * @param nodeId
  * @author Afonso Viana
  */
-class BleInterface(private val context: Context, private val nodeId: UUID) : Transport {
+class BleInterface(private val context: Context, val nodeId: UUID) : Transport {
 
     /**
      * Devices on the proximity that support Melinde
@@ -48,16 +56,21 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
     private val gattClients: ConcurrentHashMap<UUID, GattClient> = ConcurrentHashMap<UUID, GattClient>()
     private val bleAdapter: BluetoothAdapter = context.getSystemService(BluetoothManager::class.java).adapter
 
-
-    override val messages: Flow<ByteArray>
-        get() = TODO("Not yet implemented")
     override val transportId = TransportMode.BluetoothLE
+
     override var transportState: TransportState = TransportState.Disconnected
 
     private val serviceUuid = ParcelUuid.fromString(BleShared.SERVICE_UUID)
 
     private val gattServer = GattServer(context)
+    private val clientMessages = MutableSharedFlow<ByteArray>(extraBufferCapacity = 64)
 
+    override val messages: Flow<ByteArray> = merge(
+        clientMessages,
+        gattServer.events.filterIsInstance<GattServerEvent.MessageReceived>().map { it.data }
+    )
+
+    private val coroutineScope : CoroutineScope = CoroutineScope(SupervisorJob())
 
     private val _advertising = MutableStateFlow(false)
     val advertising: StateFlow<Boolean> = _advertising.asStateFlow()
@@ -65,6 +78,28 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
 
     init {
         Log.d(BleShared.BLE_TAG, "CODED ${bleAdapter.isLeCodedPhySupported()} | ${bleAdapter.isLeExtendedAdvertisingSupported()} | dataLength ${bleAdapter.leMaximumAdvertisingDataLength} ||| FASTER ${bleAdapter.isLe2MPhySupported()}")
+        coroutineScope.launch {
+            gattServer.events.collect { e ->
+                when(e){
+                    is GattServerEvent.MessageReceived -> {
+
+                        Log.d(BleShared.BLE_TAG, e.data.toString(Charsets.UTF_8 ))
+                    }
+
+                    is GattServerEvent.Connected -> {
+                        transportState = TransportState.Connected
+                    }
+
+                    is GattServerEvent.Disconnected -> {
+                        transportState = TransportState.Disconnected
+                    }
+                    is GattServerEvent.PeerReady -> {
+
+                    }
+                }
+            }
+
+        }
     }
 
     /**
@@ -231,17 +266,26 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
             .putLong(nodeId.leastSignificantBits)
             .array()
 
-    override fun send(device : Device, message: Message) {
+    override fun send(device: Device, message: Message) {
+        val client = gattClients[device.deviceId]
 
+        val sent = if (client != null && client.connected.value) {
+            Log.i(BleShared.BLE_TAG, "Sent from client")
+            client.send(message.payload)
+        } else {
+            Log.i(BleShared.BLE_TAG, "Sent from server")
+            gattServer.send(device, message.payload)
+        }
+
+        Log.d(BleShared.BLE_TAG, "Message to ${device.deviceId} sent=$sent")
     }
 
     /**
      * Processes message received
      */
-    override suspend fun processMessage(byteArray: ByteArray) {
+    override suspend fun processMessage(byteArray: ByteArray) = coroutineScope {
 
     }
-
 
 
 
@@ -258,16 +302,15 @@ class BleInterface(private val context: Context, private val nodeId: UUID) : Tra
         val device = result.toDevice() ?: return null
 
         availableDevices[device.deviceId] = result.device
+        if (nodeId > device.deviceId) return device
 
         gattClients.computeIfAbsent(device.deviceId) {
-            Log.d(
-                BleShared.BLE_TAG,
-                "Creating GattClient for ${result.device.address}, " +
-                        "deviceId=${device.deviceId}"
-            )
-            GattClient(context, result.device)
-
-
+            Log.i(BleShared.BLE_TAG, "Creating GattClient for ${device.deviceId}")
+            GattClient(context, result.device, nodeId).also { client ->
+                coroutineScope.launch {
+                    client.messages.collect { clientMessages.emit(it) }
+                }
+            }
         }.connect()
 
         return device
